@@ -1,0 +1,92 @@
+services:
+  # EMQX
+  emqx:
+    image: emqx/emqx:5.0.13
+    container_name: emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "18083:18083"
+    environment:
+      - EMQX_ALLOW_ANONYMOUS=true
+    networks:
+      - iot-net
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx_ctl", "status"]  # Changed to localhost
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # InfluxDB
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=iot-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=iot-data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=iot-admin-token-123
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - iot-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]  # Changed to localhost
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # EVE Forwarder (đọc logs từ host Suricata)
+  mqtt_eve_forwarder:
+    build: ./eve_forwarder
+    container_name: mqtt_eve_forwarder
+    restart: always
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      emqx:  # Added: Wait for EMQX
+        condition: service_healthy
+    environment:
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=iot-admin-token-123
+      - INFLUX_ORG=iot-org
+      - INFLUX_BUCKET=iot-data
+      - EVE_DIR=/var/log/suricata
+    volumes:
+      - /var/log/suricata:/var/log/suricata:ro
+    networks:
+      - iot-net
+
+  # Rule Detect Daemon
+#  mqtt_rule_detect:
+#    build: ./rule_detect
+#    container_name: mqtt_rule_detect
+#    restart: always
+#    depends_on:
+#      influxdb:
+#        condition: service_healthy
+#      mqtt_eve_forwarder:  # Added: Wait for forwarder
+#        condition: service_started
+#    environment:
+#      - INFLUX_URL=http://influxdb:8086
+#      - INFLUX_TOKEN=iot-admin-token-123
+#      - INFLUX_ORG=iot-org
+#      - SRC_BUCKET=iot-data
+#      - ALERT_BUCKET=iot-data
+#      - EMAIL_USER=Hieuttde160484@fpt.edu.vn
+#      - EMAIL_PASS=slvfzzsbyhnobcgi
+#      - EMAIL_TO=tronghieu08082002@gmail.com
+#    networks:
+#      - iot-net
+
+networks:
+  iot-net:
+    driver: bridge
+
+volumes:
+  influxdb_data:

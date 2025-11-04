@@ -1,0 +1,104 @@
+
+
+services:
+  # ==========================================================
+  # 🟢 EMQX MQTT Broker
+  # ==========================================================
+  emqx:
+    image: emqx/emqx:5.0.13
+    container_name: emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883" # MQTT
+      - "18083:18083" # Dashboard
+    environment:
+      - EMQX_ALLOW_ANONYMOUS=true
+    networks:
+      - iot-net
+
+  # ==========================================================
+  # 🟣 InfluxDB 2.7 - Time Series Database
+  # ==========================================================
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=iot-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=iot-data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=iot-admin-token-123
+#    volumes:
+#      - influxdb-data:/var/lib/influxdb2
+    networks:
+      - iot-net
+
+  # ==========================================================
+  # 🟠 Grafana Dashboard
+  # ==========================================================
+#  grafana:
+#    image: grafana/grafana:10.2.0
+#    container_name: grafana
+#    restart: unless-stopped
+#    ports:
+#      - "3000:3000"    environment:
+#      - GF_SECURITY_ADMIN_USER=admin
+#      - GF_SECURITY_ADMIN_PASSWORD=admin123
+#    volumes:
+#      - grafana-data:/var/lib/grafana
+#    networks:
+#      - iot-net
+
+  # ==========================================================
+  # 🧩 Telegraf Agent
+  # ==========================================================
+#  telegraf:
+#    image: telegraf:latest
+#    container_name: telegraf
+#    restart: unless-stopped
+#    depends_on:
+ #     - emqx
+#      - influxdb
+#    volumes:
+#      - ./telegraf2.conf:/etc/telegraf/telegraf.conf:ro
+#      - /var/run/docker.sock:/var/run/docker.sock:ro
+#      - /sys:/host/sys:ro
+#      - /proc:/host/proc:ro
+#      - /etc:/host/etc:ro
+#      - /var/log/suricata/eve.json:/eve.json:ro
+#    environment:
+#      - HOST_ETC=/host/etc
+#      - HOST_PROC=/host/proc
+#      - HOST_SYS=/host/sys
+#    networks:
+#      - iot-net
+ # office_zone:
+ #   build: .
+ #   container_name: zone_office
+ #   command: ["python", "replayer_office.py"]
+ #   environment:
+ #     - BROKER=emqx
+ #     - PORT=1883
+#    networks:
+#      iot-net:
+#        ipv4_address: 172.28.0.25
+# ==========================================================
+# Persistent Volumes
+# ==========================================================
+#volumes:
+#  influxdb-data:
+#  grafana-data:
+
+# ==========================================================
+# Virtual Network (for all containers)
+# ==========================================================
+networks:
+  iot-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

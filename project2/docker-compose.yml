@@ -1,0 +1,85 @@
+# ==========================================================
+# Docker Compose Stack: EMQX + HAProxy (TLS Proxy) + InfluxDB
+# ==========================================================
+
+services:
+  # ==========================================================
+  # 🔐 HAProxy - TLS Termination Proxy for MQTT
+  # ==========================================================
+  haproxy:
+    image: haproxy:2.9
+    container_name: haproxy
+    restart: unless-stopped
+    network_mode: host                        # use host networking (binds to host ports)
+    volumes:
+      - ./certs:/usr/local/etc/haproxy/certs:ro
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - emqx
+
+  # ==========================================================
+  # 🟢 EMQX MQTT Broker (Plaintext, Receives from HAProxy)
+  # ==========================================================
+  emqx:
+    image: emqx/emqx:5.0.13
+    container_name: emqx
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"     # Plain MQTT (HAProxy forwards here)
+      - "18083:18083"   # Dashboard
+    environment:
+      # Dashboard
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
+
+      # Authentication
+      - EMQX_AUTHENTICATION__1__ENABLE=true
+      - EMQX_AUTHENTICATION__1__MECHANISM=password_based
+      - EMQX_AUTHENTICATION__1__BACKEND=built_in_database
+      - EMQX_AUTHENTICATION__1__PASSWORD_HASH_ALGORITHM__NAME=sha256
+      - EMQX_AUTHENTICATION__1__PASSWORD_HASH_ALGORITHM__SALT_POSITION=prefix
+
+      # Authorization
+      - EMQX_AUTHORIZATION__NO_MATCH=deny
+      - EMQX_AUTHORIZATION__SOURCES__1__TYPE=file
+      - EMQX_AUTHORIZATION__SOURCES__1__ENABLE=true
+      - EMQX_AUTHORIZATION__SOURCES__1__PATH=/opt/emqx/etc/acl.conf
+      - EMQX_AUTHORIZATION__SOURCES__2__TYPE=built_in_database
+      - EMQX_AUTHORIZATION__SOURCES__2__ENABLE=false
+
+      - EMQX_NODE__COOKIE=dev_cookie_change_me
+      - EMQX_LISTENER__TCP__EXTERNAL__ENABLE=true
+      - EMQX_LISTENER__TCP__EXTERNAL__PORT=1883
+    volumes:
+      - ./certs:/opt/emqx/etc/certs:ro
+    networks:
+      - iot-net
+
+  # ==========================================================
+  # 🟣 InfluxDB - Time Series Database
+  # ==========================================================
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=iot-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=iot-data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=iot-admin-token-123
+    networks:
+      - iot-net
+
+# ==========================================================
+# Virtual Network for EMQX + InfluxDB (HAProxy uses host net)
+# ==========================================================
+networks:
+  iot-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

@@ -1,0 +1,9 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY mqtt_eve_forwarder4.py .
+
+RUN pip install --no-cache-dir influxdb-client==1.41.0
+
+CMD ["python", "mqtt_eve_forwarder4.py"]
