@@ -1,0 +1,8 @@
+# Core library for interacting with InfluxDB 2.x (HTTP API + Flux support)
+influxdb-client==1.45.0
+
+# JSON and time are built-in modules, no need to list them
+
+# Optional but recommended for stability (helps when building Docker images)
+urllib3>=1.26.0
+certifi>=2021.10.8
